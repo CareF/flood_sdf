@@ -5,7 +5,10 @@ import osqp  # QP solver
 from scipy import sparse
 
 def point_to_triangle_linarg(point: ArrayLike, triangle: NDArray):
-    """Return the distance from a point to a triangle."""
+    """Return the distance from a point to a triangle.
+
+    Experimental, not part of the work
+    """
     # x * (r1, r2, r3, norm) == point & sum(x[:3]) == 1
     norm = np.cross(triangle[1] - triangle[0], triangle[2] - triangle[1])
     norm = norm / numpy.linalg.norm(norm)
@@ -36,7 +39,10 @@ def point_to_triangle_linarg(point: ArrayLike, triangle: NDArray):
     return np.linalg.norm(residual_vec)
 
 def point_to_triangle(point: ArrayLike, triangle: NDArray):
-    """triangle[i] is the i-th vertex of the triangle, c.c.w. to point out."""
+    """triangle[i] is the i-th vertex of the triangle, c.c.w. to point out.
+
+    Experimental, not part of the work
+    """
     P = sparse.csc_matrix(triangle @ triangle.T)
     q = - triangle @ point
     A = sparse.csc_matrix(np.vstack([np.ones((1, 3)), np.identity(3)]))
