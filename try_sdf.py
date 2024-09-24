@@ -31,3 +31,5 @@ r0 = np.array([-0.5, -1.5, -0.5])
 step = np.array([0.05, 0.05, 0.05])
 size = (120, 60, 40)
 sdf = close_mesh_sdf(mesh.triangles, r0, step, size, 4)
+
+trimesh.voxel.creation.voxelize(mesh, 0.05, 'binary')
