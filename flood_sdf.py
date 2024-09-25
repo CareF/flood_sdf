@@ -12,14 +12,13 @@ def point_to_triangle_linarg(point: ArrayLike, triangle: NDArray):
     Experimental, not part of the work
     """
     # x * (r1, r2, r3, norm) == point & sum(x[:3]) == 1
-    norm = np.cross(triangle[1] - triangle[0], triangle[2] - triangle[1])
-    norm = norm / numpy.linalg.norm(norm)
+    normal = np.cross(triangle[1] - triangle[0], triangle[2] - triangle[1])
+    normal = normal / numpy.linalg.norm(normal)
     x = np.linalg.solve(
-        np.block([[triangle.T, norm.reshape((3, 1))], [np.ones((1, 3)), 0]]),
+        np.block([[triangle.T, normal.reshape((3, 1))], [np.ones((1, 3)), 0]]),
         np.append(point, 1),
     )
     a, b, c, h = x
-    print(a, b, c, h)
     if a >= 0 and b >= 0 and c >= 0:
         return h
     if a < 0 and b < 0:
@@ -29,12 +28,29 @@ def point_to_triangle_linarg(point: ArrayLike, triangle: NDArray):
     if b < 0 and c < 0:
         return np.linalg.norm(point - triangle[0])
     if a < 0:
-        pass
+        return point_to_segment(point, triangle[[1, 2]])
     if b < 0:
-        pass
+        return point_to_segment(point, triangle[[0, 2]])
     if c < 0:
-        pass
-    raise NotImplementedError("TODO")
+        return point_to_segment(point, triangle[[0, 1]])
+    raise RuntimeError("Should not be here.")
+
+
+def point_to_segment(point: ArrayLike, segment: NDArray):
+    """Return the distance from a point to a segment. segment is a 2x3 array,
+    segment[0] and segment[1] are the two end points.
+
+    Experimental, not part of the work
+    """
+    seg_vec = segment[1] - segment[0]
+    point_vec = point - segment[0]
+    along_seg = point_vec @ seg_vec / (seg_vec @ seg_vec)
+    if along_seg < 0:
+        return np.linalg.norm(point_vec)
+    if along_seg > 1:
+        return np.linalg.norm(point - segment[1])
+    residual_vec = point_vec - along_seg * seg_vec
+    return np.linalg.norm(residual_vec)
 
 
 def point_to_triangle(point: ArrayLike, triangle: NDArray):
@@ -48,7 +64,7 @@ def point_to_triangle(point: ArrayLike, triangle: NDArray):
     lower = np.array([1.0, 0.0, 0.0, 0.0])
     upper = np.array([1.0, np.inf, np.inf, np.inf])
     prob = osqp.OSQP()
-    prob.setup(P, q, A, lower, upper, verbose=False)
+    prob.setup(P, q, A, lower, upper, verbose=False, polish=True)
     res = prob.solve()
     assert res.info.status == "solved"
     residual_vec = point - res.x @ triangle
