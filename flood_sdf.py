@@ -78,13 +78,15 @@ def close_triangle_distance_sq(
     size: tuple,
     width: int,
     df_sq: NDArray,
+    sdf_vec: NDArray,
+    polish: bool = False,
 ):
     """
     trangle[j] is the j-th vertex (ccw to point out) of the triangle.
     grid is r0 + (i, j, k) @ step, where r0 and step are 3D vectors.
     width is the width of how close  to the triangle.
 
-    update df_sq (distance field squared) in place.
+    update df_sq (distance field squared) and sdf_vec (the vec of sdf) in place.
     """
     norm = np.cross(triangle[1] - triangle[0], triangle[2] - triangle[1])
     norm = norm / numpy.linalg.norm(norm)
@@ -100,7 +102,7 @@ def close_triangle_distance_sq(
     lower = np.array([1.0, 0.0, 0.0, 0.0])
     upper = np.array([1.0, np.inf, np.inf, np.inf])
     prob = osqp.OSQP()
-    prob.setup(p_mat, q_vec, a_mat, lower, upper, verbose=False)
+    prob.setup(p_mat, q_vec, a_mat, lower, upper, polish=polish, verbose=False)
 
     processed = set()
     to_be_calc = [start]
@@ -113,6 +115,7 @@ def close_triangle_distance_sq(
         res = prob.solve()
         assert res.info.status == "solved"
         residual_vec = point - res.x @ triangle
+        # if np.sum(np.ceil(np.abs(residual_vec / step))) > width:
         if np.any(np.abs(residual_vec) > width * step):
             continue
         # distance_sq = 2 * res.info.obj_val + point @ point
@@ -127,6 +130,7 @@ def close_triangle_distance_sq(
         # distance = np.linalg.norm(residual_vec)
         if df_sq[point_idx] > distance_sq:
             df_sq[point_idx] = distance_sq
+            sdf_vec[point_idx] = residual_vec
 
         for idx in point_idx + np.array(
             [
@@ -157,17 +161,31 @@ def get_sign(
 
 
 def close_mesh_sdf(
-    mesh: trimesh.Trimesh, r0: NDArray, step: NDArray, size: tuple, width: int
+    mesh: trimesh.Trimesh,
+    r0: NDArray,
+    step: NDArray,
+    size: tuple,
+    width: int,
+    polish: bool = False,
 ):
     """
     trangles[i][j] is the j-th vertex (ccw to point out) of the i-th triangle.
     grid is r0 + (i, j, k) @ step, where r0 and step are 3D vectors.
+
+    set polish=True if the result is not accurate enough.
+
+    return:
+        sdf: the signed distance field
+        sdf_vec: the vector from the closest point on the mesh to the point on grid.
     """
     assert width >= 1
     sdf = np.inf * np.ones(size)
+    sdf_vec = np.nan * np.ones((*size, 3))
     for triangle in mesh.triangles:
-        close_triangle_distance_sq(triangle, r0, step, size, width, sdf)
-    return np.sqrt(sdf) * get_sign(mesh, r0, step, size, width)
+        close_triangle_distance_sq(
+            triangle, r0, step, size, width, sdf, sdf_vec, polish=polish
+        )
+    return np.sqrt(sdf) * get_sign(mesh, r0, step, size, width), sdf_vec
 
 
 if __name__ == "__main__":
